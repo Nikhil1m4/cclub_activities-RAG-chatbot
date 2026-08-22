@@ -1,0 +1,10 @@
+# Environment variables / API Keys
+.env
+*.env
+# Vector database persistence directory
+chroma_db/
+# Python cache & build artifacts
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/

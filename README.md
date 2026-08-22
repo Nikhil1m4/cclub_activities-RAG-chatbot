@@ -7,7 +7,7 @@
 
 A full-stack, context-aware Retrieval-Augmented Generation (RAG) system built with FastAPI and React. This project was engineered to demonstrate enterprise-level AI patterns, focusing on data security, conversational memory, and source traceability.
 
-## 🌟 Key Features
+##  Key Features
 
 - **Role-Based Access Control (RBAC):** Implements strict metadata filtering at the vector-database level (ChromaDB) so that public visitors can never access or query member-only confidential documents.
 - **Source Traceability (Citations):** Utilizes Langchain's advanced `RunnableParallel` to extract raw database chunks alongside the LLM inference, rendering transparent source badges (e.g., `📄 Source: Member_Database`) in the UI to prevent hallucinations.
@@ -15,7 +15,7 @@ A full-stack, context-aware Retrieval-Augmented Generation (RAG) system built wi
 - **Proactive UX:** The LLM is strictly prompted to dynamically generate context-aware follow-up questions, which are parsed by the frontend into clickable suggestion buttons.
 - **High-Performance Inference:** Powered by Meta's Llama 3.3 (70B parameters) running on Groq's LPU inference engine for blazing-fast token streaming.
 
-## 🏗️ Architecture Stack
+##  Architecture Stack
 
 - **Frontend:** React (Vite) + Vanilla CSS (Glassmorphism UI)
 - **Backend API:** Python + FastAPI 
@@ -24,7 +24,7 @@ A full-stack, context-aware Retrieval-Augmented Generation (RAG) system built wi
 - **Embeddings:** HuggingFace (`all-MiniLM-L6-v2`)
 - **LLM:** Groq API (`llama-3.3-70b-versatile`)
 
-## 🚀 Getting Started
+##  Getting Started
 
 ### 1. Backend Setup
 ```bash
@@ -42,7 +42,7 @@ npm run dev
 ```
 Navigate to `http://localhost:5173` to interact with the bot!
 
-## 🧠 Technical Trade-offs & Decisions
+##  Technical Trade-offs & Decisions
 Here are some specific architectural choices made for this project:
 1. **Groq over OpenAI:** Chosen for its industry-leading token generation speed, which is critical for maintaining a snappy user experience in real-time chat applications.
 2. **Vector Filtering vs Post-Retrieval Masking:** Security rules (Public vs Member) are enforced directly within the ChromaDB query (`$in` operators) rather than relying on the LLM to censor itself. This guarantees zero data leakage.

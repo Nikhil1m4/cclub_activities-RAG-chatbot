@@ -44,7 +44,7 @@ A role-filtered Retrieval-Augmented Generation (RAG) REST API backend for the Ju
 ### `GET /health`
 Returns `{"status": "ok"}` for container/service health checks.
 
-## 🚀 Quick Start
+##  Quick Start
 
 ```bash
 # 1. Install dependencies

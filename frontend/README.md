@@ -1,16 +1,30 @@
-# React + Vite
+#  RAG Chatbot Frontend (React + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A modern, responsive single-page web interface for interacting with the Role-Based RAG FastAPI backend.
 
-Currently, two official plugins are available:
+##  Key Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Role Switching UI:** Real-time toggle between ` Public Visitor` and ` Verified Member` roles to demonstrate vector-level security rules.
+- **Source Badges:** Renders transparent citation badges (` Source: Member_Database`) returned by backend document retrieval.
+- **Proactive Follow-up Suggestions:** Automatically parses hidden backend suggestion markers into interactive, single-click prompt buttons.
+- **Conversational Memory:** Preserves multi-turn chat history state and sends history context on each prompt to backend API.
+- **Glassmorphism UI:** Custom-built dark mode CSS layout with smooth auto-scrolling and typing indicators.
 
-## React Compiler
+##  Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Core Framework:** React 18 + Vite
+- **Styling:** Custom Vanilla CSS (Glassmorphism & dark-mode aesthetic)
+- **Markdown Processing:** `react-markdown`
 
-## Expanding the Oxlint configuration
+##  Quick Start
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Start Vite development server
+npm run dev
+
+# 3. Build production bundle
+npm run build
+```

@@ -1,18 +1,10 @@
-"""
-Jugaad Robotics Club — Role-Based RAG Chatbot (FastAPI Backend)
-================================================================
-Architecture: Single FastAPI service that trusts the "role" field
-forwarded by the upstream Node.js authentication layer. This service
-is ONLY responsible for retrieval-augmented generation (RAG) and
-role-based knowledge filtering. Authentication is NOT handled here.
-"""
-
 import os
 import sys
+import uuid
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from operator import itemgetter
 from pydantic import BaseModel, field_validator
@@ -26,26 +18,17 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
-# ---------------------------------------------------------------------------
-# Load environment variables from .env file (if it exists).
-# load_dotenv() is a no-op when .env is absent, so this is safe in production
-# where secrets come from the OS environment directly (e.g., Docker/k8s).
-# ---------------------------------------------------------------------------
 load_dotenv()
 
-# Global state — populated once at startup, shared across all requests.
 vector_db: Chroma | None = None
 llm: ChatGroq | None = None
 
-
-# Pydantic models
 
 class ChatRequest(BaseModel):
     message: str
     role: str = "public"
     history: list[dict] = []
 
-    # Validate role values so bad requests fail fast with a clear 422 response.
     @field_validator("role")
     @classmethod
     def role_must_be_valid(cls, v: str) -> str:
@@ -71,55 +54,36 @@ class HealthResponse(BaseModel):
     status: str
 
 
-# Document ingestion helpers
-
 def ingest_pdf(path: str, access_level: str) -> list:
-    """
-    Load a PDF, split it into chunks, and stamp each chunk's metadata with
-    its access level.
-    """
     if not os.path.exists(path):
         raise FileNotFoundError(f"Required PDF not found: '{path}'")
 
     loader = PyPDFLoader(path)
     documents = loader.load()
 
-    # chunk_size=1000 keeps context windows manageable.
-    # chunk_overlap=100 ensures sentences split across chunk boundaries are
-    # still represented in at least one chunk — prevents lost context.
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     chunks = splitter.split_documents(documents)
 
-    # Stamp access level onto every chunk's metadata.
-    # ChromaDB stores this alongside the vector and uses it for $eq/$in filters.
     for chunk in chunks:
         chunk.metadata["access"] = access_level
 
     return chunks
 
 
-# Application lifespan (startup / shutdown)
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    FastAPI lifespan context manager.
-    Everything before `yield` runs at startup; after `yield` runs at shutdown.
-    """
     global vector_db, llm
 
-    # 1. Validate GROQ_API_KEY
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
         print(
             "\n[FATAL] GROQ_API_KEY environment variable is not set.\n"
-            "  → For local dev: add GROQ_API_KEY=gsk_... to a .env file.\n"
-            "  → For production: set it as an OS/container environment variable.\n",
+            "  For local dev: add GROQ_API_KEY=gsk_... to a .env file.\n"
+            "  For production: set it as an OS/container environment variable.\n",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    # 2. Ingest both PDFs
     print("[Startup] Loading and ingesting PDF documents...")
     try:
         public_chunks = ingest_pdf("public.pdf", access_level="public")
@@ -134,7 +98,6 @@ async def lifespan(app: FastAPI):
         print(f"\n[FATAL] {e}", file=sys.stderr)
         sys.exit(1)
 
-    # 3. Build embeddings + ChromaDB
     print("[Startup] Building embeddings and ChromaDB index (this may take a moment)...")
     try:
         embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
@@ -158,22 +121,18 @@ async def lifespan(app: FastAPI):
         print(f"\n[FATAL] ChromaDB initialization failed: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # 4. Initialize the LLM
     llm = ChatGroq(
         model_name="openai/gpt-oss-20b",
-        temperature=0,       # temperature=0 → deterministic, factual answers.
+        temperature=0,
         groq_api_key=api_key,
     )
-    print("[Startup] LLM (ChatGroq / Llama 3.3 70b) initialized.")
+    print("[Startup] LLM initialized.")
     print("[Startup] Service is ready. [OK]\n")
 
-    yield  # ← server is live and handling requests between here and shutdown
+    yield
 
-    # Shutdown logic (if needed) goes here.
     print("[Shutdown] Cleaning up resources.")
 
-
-# FastAPI app
 
 app = FastAPI(
     title="Jugaad Club RAG API",
@@ -182,16 +141,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows requests from React development server
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# RAG prompt template
 RAG_PROMPT = ChatPromptTemplate.from_template(
     """You are the AI assistant for the Jugaad Robotics Club. Answer questions using ONLY the information provided in the context below.
 
@@ -216,19 +173,13 @@ Answer:"""
 
 
 def format_docs(docs) -> str:
-    """Concatenate retrieved document chunks into a single context string."""
     return "\n\n".join(doc.page_content for doc in docs)
 
 
 def build_rag_chain(role: str):
-    """
-    Build a role-filtered LCEL RAG chain on the fly for each request.
-    """
     if role == "public":
-        # Public users may only see chunks explicitly tagged as public.
         chroma_filter = {"access": {"$eq": "public"}}
     else:
-        # Members see everything: public info AND internal member-only content.
         chroma_filter = {"access": {"$in": ["public", "member"]}}
 
     retriever = vector_db.as_retriever(
@@ -236,61 +187,106 @@ def build_rag_chain(role: str):
     )
 
     from langchain_core.runnables import RunnableParallel
-    
-    # LCEL chain: retriever → format → prompt → LLM → parse string output
+
     setup_and_retrieval = RunnableParallel(
         context=itemgetter("question") | retriever | format_docs,
         docs=itemgetter("question") | retriever,
         question=itemgetter("question"),
         chat_history=itemgetter("chat_history")
     )
-    
+
     chain = setup_and_retrieval.assign(
         answer=RAG_PROMPT | llm | StrOutputParser()
     )
     return chain
 
 
-# Endpoints
-
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
 async def health_check():
-    """
-    Simple liveness probe. Returns 200 {"status": "ok"} when the service is
-    running. Check this endpoint before connecting any frontend or load balancer.
-    """
     return {"status": "ok"}
+
+
+@app.post("/upload", tags=["Upload"])
+async def upload_pdf(
+    file: UploadFile = File(...),
+    role: str = Form(...),
+):
+    if role not in ("public", "member"):
+        raise HTTPException(
+            status_code=400,
+            detail='role must be "public" or "member".',
+        )
+
+    if not file.filename.endswith(".pdf") or file.content_type != "application/pdf":
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF files are accepted. Please upload a .pdf file.",
+        )
+
+    if vector_db is None:
+        raise HTTPException(status_code=503, detail="Vector database not ready.")
+
+    existing = vector_db.get(
+        where={"source": {"$contains": file.filename}}
+    )
+    if existing and existing.get("ids"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"A file named '{file.filename}' has already been ingested. Delete it from the database before re-uploading.",
+        )
+
+    temp_dir = "temp_uploads"
+    os.makedirs(temp_dir, exist_ok=True)
+
+    unique_name = f"{uuid.uuid4()}_{file.filename}"
+    temp_path = os.path.join(temp_dir, unique_name)
+
+    file_bytes = await file.read()
+    with open(temp_path, "wb") as f:
+        f.write(file_bytes)
+
+    chunks = []
+    try:
+        chunks = ingest_pdf(temp_path, access_level=role)
+        vector_db.add_documents(chunks)
+        print(f"[Upload] Ingested '{file.filename}' as role='{role}' ({len(chunks)} chunks added).")
+    except Exception as e:
+        print(f"[ERROR] /upload failed for '{file.filename}': {e}", file=sys.stderr)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to process the uploaded file: {str(e)}",
+        )
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+    return {
+        "status": "success",
+        "filename": file.filename,
+        "chunks_added": len(chunks),
+    }
 
 
 @app.post("/chat", response_model=ChatResponse, tags=["Chat"])
 async def chat(request: ChatRequest):
-    """
-    Accepts a user message and role, runs the LCEL RAG chain, and returns the AI's answer.
-    """
     if vector_db is None or llm is None:
-        # Should not happen if startup succeeded, but guard defensively.
         raise HTTPException(
             status_code=503,
             detail="Service not ready. Vector database or LLM failed to initialize.",
         )
 
     try:
-        # Build chain on the fly with the requested role
         rag_chain = build_rag_chain(role=request.role)
-        
-        # Format the chat history for the prompt (keeping only the last 4 messages for token efficiency)
+
         chat_history = ""
         if request.history:
             chat_history = "\n".join([f"{msg.get('role', 'user').capitalize()}: {msg.get('content', '')}" for msg in request.history[-4:]])
 
-        # Invoke LCEL pipeline
-        # Notice how cleanly we pass the input dict to the chain.
         result = rag_chain.invoke({
             "question": request.message,
             "chat_history": chat_history
         })
-        
-        # Extract and map custom source names
+
         raw_sources = set()
         for doc in result.get("docs", []):
             src = doc.metadata.get("source", "")
@@ -304,14 +300,12 @@ async def chat(request: ChatRequest):
                     raw_sources.add(filename)
 
         return ChatResponse(
-            answer=result["answer"], 
-            role=request.role, 
+            answer=result["answer"],
+            role=request.role,
             sources=list(raw_sources)
         )
 
     except Exception as e:
-        # Catch-all for unexpected LLM/retriever errors. Log the full error
-        # server-side but return a clean message to the client.
         print(f"[ERROR] /chat failed for role='{request.role}': {e}", file=sys.stderr)
         raise HTTPException(
             status_code=500,
@@ -319,10 +313,6 @@ async def chat(request: ChatRequest):
         )
 
 
-# Entry point
-
 if __name__ == "__main__":
     import uvicorn
-    # host="0.0.0.0" makes the service reachable from other machines (e.g., the
-    # Node.js auth layer). Use "127.0.0.1" if you want localhost-only access.
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

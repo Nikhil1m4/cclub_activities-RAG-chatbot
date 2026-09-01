@@ -1,0 +1,8 @@
+# Generated / AI tooling files — not source code
+PROJECT_CONTEXT.md
+generate_context.py
+rbac_test_matrix.svg
+
+# OS
+.DS_Store
+Thumbs.db

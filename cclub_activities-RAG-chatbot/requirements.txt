@@ -1,22 +1,23 @@
-# ── FastAPI server ───────────────────────────────────────────────────────────
+# FastAPI
 fastapi
 uvicorn[standard]
+python-multipart
 
-# ── LangChain core + integrations ────────────────────────────────────────────
+# LangChain
 langchain
 langchain-core
 langchain-community
 langchain-huggingface
 langchain-groq
 
-# ── Vector store ─────────────────────────────────────────────────────────────
+# Vector store
 chromadb
 
-# ── Embedding model backend ──────────────────────────────────────────────────
+# Embeddings
 sentence-transformers
 
-# ── PDF parsing ──────────────────────────────────────────────────────────────
+# PDF parsing
 pypdf
 
-# ── Environment variable management ─────────────────────────────────────────
+# Env vars
 python-dotenv

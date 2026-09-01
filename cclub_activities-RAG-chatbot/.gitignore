@@ -1,10 +1,12 @@
-# Environment variables / API Keys
 .env
 *.env
-# Vector database persistence directory
+
 chroma_db/
-# Python cache & build artifacts
+temp_uploads/
+
 __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+
+scratch_script.py

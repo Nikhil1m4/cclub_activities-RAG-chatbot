@@ -54,5 +54,6 @@ Open `http://localhost:5173` to use the chatbot.
 ---
 
 ⭐ If you found this project useful as a reference, consider giving it a star — it helps others find it too.
+FUTURE GOALS : make a 3 role (Admin , Member,Public User)  based access so I can make my complete project in a way that same chatbot handles queries from public user,club member and the member and admin can upload data in form of pdf and only admin can insert and manage these uploaded pdfs in rag pipeline.
 
 📄 **License:** This project is built for educational purposes. Feel free to reference or adapt it for your own learning.
